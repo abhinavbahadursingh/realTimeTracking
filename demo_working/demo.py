@@ -9,12 +9,13 @@ model = YOLO('yolo11n.pt')
 class_list = model.names
 
 # Load video
-cap = cv2.VideoCapture(r'E:\Projects\Hacknovate6\realTimeTraffix\Data\Video\3.mp4')
+cap = cv2.VideoCapture(r'C:\Users\tar30\dmeo\Data\Video\testoing.mp4')
 
 # Get video properties
 fps = cap.get(cv2.CAP_PROP_FPS)
-if fps <= 0:
-    fps = 30  # Default if can't get FPS
+fps=60
+# if fps <= 0:
+#     fps = 30  # Default if can't get FPS
 
 # Tracking variables
 vehicle_data = {}
@@ -34,9 +35,9 @@ while cap.isOpened():
     # Process frame with YOLO
     results = model.track(frame, persist=True)
 
-    # Draw tracking lines for reference
-    cv2.line(frame, (190, 220), (850, 220), (0, 0, 255), 3)  # Red line
-    cv2.line(frame, (27, 450), (960, 450), (255, 0, 0), 3)  # Blue line
+    # # Draw tracking lines for reference
+    # cv2.line(frame, (190, 220), (850, 220), (0, 0, 255), 3)  # Red line
+    # cv2.line(frame, (27, 450), (960, 450), (255, 0, 0), 3)  # Blue line
 
     if results[0].boxes.data is not None:
         boxes = results[0].boxes.xyxy.cpu().numpy()
