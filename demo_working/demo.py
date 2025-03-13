@@ -1,8 +1,14 @@
+
 import cv2
 import time
 import numpy as np
+import matplotlib.pyplot as plt
 from ultralytics import YOLO
+import csv
 from collections import defaultdict
+
+
+from collections import deque
 
 # Load YOLO model
 model = YOLO('yolo11n.pt')
@@ -13,16 +19,27 @@ cap = cv2.VideoCapture(r'C:\Users\tar30\dmeo\Data\Video\testoing.mp4')
 
 # Get video properties
 fps = cap.get(cv2.CAP_PROP_FPS)
-fps=60
-# if fps <= 0:
-#     fps = 30  # Default if can't get FPS
+fps = 60  # Adjust if needed
 
 # Tracking variables
 vehicle_data = {}
 frame_count = 0
 
-# Distance calibration (adjust these values based on your scene)
-pixels_per_meter = 20  # Calibrate this based on known objects in the scene
+# Distance calibration
+pixels_per_meter = 20
+
+# Open CSV file for logging
+csv_file = open("vehicle_speed_data.csv", mode="w", newline="")
+csv_writer = csv.writer(csv_file)
+csv_writer.writerow(["Timestamp", "Frame", "VehicleID", "Class", "Speed_km_h", "Center_X", "Center_Y"])
+
+# Graph data storage
+time_series = deque(maxlen=100)
+vehicle_count_series = deque(maxlen=100)
+speed_series = deque(maxlen=100)
+
+plt.ion()
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6))
 
 while cap.isOpened():
     ret, frame = cap.read()
@@ -32,101 +49,94 @@ while cap.isOpened():
     frame_count += 1
     current_time = time.time()
 
-    # Process frame with YOLO
+    # Process frame with YOLO tracking
     results = model.track(frame, persist=True)
 
-    # # Draw tracking lines for reference
-    # cv2.line(frame, (190, 220), (850, 220), (0, 0, 255), 3)  # Red line
-    # cv2.line(frame, (27, 450), (960, 450), (255, 0, 0), 3)  # Blue line
-
+    # If detections exist
     if results[0].boxes.data is not None:
         boxes = results[0].boxes.xyxy.cpu().numpy()
 
-        # Check if tracking IDs are available
         if results[0].boxes.id is not None:
             track_ids = results[0].boxes.id.int().cpu().tolist()
             classes = results[0].boxes.cls.int().cpu().tolist()
 
-            # Process each detected vehicle
             for box, track_id, class_id in zip(boxes, track_ids, classes):
                 x1, y1, x2, y2 = map(int, box)
                 cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
                 class_name = class_list[class_id]
 
-                # Initialize vehicle data if this is a new vehicle
                 if track_id not in vehicle_data:
-                    vehicle_data[track_id] = {
-                        'class': class_name,
-                        'first_seen_frame': frame_count,
-                        'last_seen': current_time,
-                        'positions': [(frame_count, cx, cy)],
-                        'speed': 0.0
-                    }
+                    vehicle_data[track_id] = {'class': class_name, 'first_seen_frame': frame_count,
+                                              'last_seen': current_time, 'positions': [(frame_count, cx, cy)],
+                                              'speed': 0.0}
                 else:
-                    # Update existing vehicle data
                     vehicle_data[track_id]['last_seen'] = current_time
                     vehicle_data[track_id]['positions'].append((frame_count, cx, cy))
-
-                    # Keep only the most recent 10 positions for memory efficiency
                     if len(vehicle_data[track_id]['positions']) > 10:
                         vehicle_data[track_id]['positions'] = vehicle_data[track_id]['positions'][-10:]
 
-                    # Calculate speed based on recent position changes
                     if len(vehicle_data[track_id]['positions']) >= 2:
-                        # Get oldest and newest positions
                         old_frame, old_x, old_y = vehicle_data[track_id]['positions'][0]
                         new_frame, new_x, new_y = vehicle_data[track_id]['positions'][-1]
-
-                        # Calculate distance in pixels
                         pixel_distance = np.sqrt((new_x - old_x) ** 2 + (new_y - old_y) ** 2)
-
-                        # Convert to meters
                         distance_meters = pixel_distance / pixels_per_meter
-
-                        # Calculate time difference in seconds
                         frame_diff = new_frame - old_frame
-                        time_diff = frame_diff / fps  # Convert frame count to seconds
+                        time_diff = frame_diff / fps
 
-                        # Calculate speed if time difference is valid
                         if time_diff > 0:
-                            # Calculate speed in km/h (distance in m / time in s * 3.6)
                             speed_km_h = (distance_meters / time_diff) * 3.6
-
-                            # Apply smoothing (exponential moving average)
-                            alpha = 0.3  # Smoothing factor
+                            alpha = 0.3
                             old_speed = vehicle_data[track_id]['speed']
                             new_speed = alpha * speed_km_h + (1 - alpha) * old_speed
-
-                            # Update vehicle speed
                             vehicle_data[track_id]['speed'] = round(new_speed, 2)
 
-                # Draw bounding box
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                csv_writer.writerow([current_time, frame_count, track_id, class_name,
+                                     vehicle_data[track_id]['speed'], cx, cy])
 
-                # Display ID and class
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 cv2.putText(frame, f"ID: {track_id} {class_name}", (x1, y1 - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-
-                # Display speed
                 speed = vehicle_data[track_id]['speed']
                 cv2.putText(frame, f"Speed: {speed:.2f} KM/H", (x1, y2 + 20),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
-    # Remove vehicles not seen for more than 5 seconds
-    current_time = time.time()
     vehicles_to_remove = [v_id for v_id, data in vehicle_data.items()
                           if current_time - data['last_seen'] > 5]
-
     for v_id in vehicles_to_remove:
-        print(f"❌ Removing Vehicle {v_id} from tracking")
         vehicle_data.pop(v_id)
+
+    vehicle_count = len(vehicle_data)
+    cv2.putText(frame, f"Vehicle Count: {vehicle_count}", (20, 40),
+                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
+
+    # Update Graph Data
+    time_series.append(frame_count)
+    vehicle_count_series.append(vehicle_count)
+    avg_speed = np.mean([v['speed'] for v in vehicle_data.values()]) if vehicle_data else 0
+    speed_series.append(avg_speed)
+
+    # Real-time graph update
+    ax1.clear()
+    ax1.plot(time_series, vehicle_count_series, color='b', label='Vehicles')
+    ax1.set_ylabel("Number of Vehicles")
+    ax1.legend()
+
+    ax2.clear()
+    ax2.plot(time_series, speed_series, color='r', label='Speed (km/h)')
+    ax2.set_xlabel("Frames")
+    ax2.set_ylabel("Average Speed (km/h)")
+    ax2.legend()
+
+    plt.pause(0.01)
 
     # Display the frame
     cv2.imshow("YOLO Object Tracking & Counting", frame)
 
-    # Exit on ESC key
     if cv2.waitKey(1) & 0xFF == 27:
         break
 
 cap.release()
+csv_file.close()
 cv2.destroyAllWindows()
+plt.ioff()
+plt.show()
