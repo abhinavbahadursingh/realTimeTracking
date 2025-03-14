@@ -11,11 +11,6 @@ def track_vehicle(track_id,cx,cy):
     # Send test data
     data = {"track_id": track_id,  "x:":cx,"y ":cy}
 
-
-    vehicle_ref = ref.child(str(track_id))
+    vechle_data=ref.child("vehicle_Data")
+    vehicle_ref = vechle_data.child(str(track_id))
     vehicle_ref.set(data)
-    ref.push(data)
-    # print("Data sent successfully!")
-
-# Start tracking vehicles
-# track_vehicle()

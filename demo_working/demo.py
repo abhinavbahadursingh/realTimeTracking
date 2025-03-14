@@ -92,6 +92,8 @@ while cap.isOpened():
                             vehicle_data[track_id]['speed'] = round(new_speed, 2)
 
                             speedData.log_speed(track_id,round(new_speed,2))
+                            speedData.log_speed_to_csv(track_id,round(new_speed,2))
+                            # speedData.calculate_and_update_avg_speed()
                 csv_writer.writerow([current_time, frame_count, track_id, class_name,
                                      vehicle_data[track_id]['speed'], cx, cy])
 
@@ -101,11 +103,11 @@ while cap.isOpened():
                 speed = vehicle_data[track_id]['speed']
                 cv2.putText(frame, f"Speed: {speed:.2f} KM/H", (x1, y2 + 20),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-
     vehicles_to_remove = [v_id for v_id, data in vehicle_data.items()
                           if current_time - data['last_seen'] > 5]
     for v_id in vehicles_to_remove:
         vehicle_data.pop(v_id)
+
 
     vehicle_count = len(vehicle_data)
     cv2.putText(frame, f"Vehicle Count: {vehicle_count}", (20, 40),
@@ -115,6 +117,9 @@ while cap.isOpened():
     time_series.append(frame_count)
     vehicle_count_series.append(vehicle_count)
     avg_speed = np.mean([v['speed'] for v in vehicle_data.values()]) if vehicle_data else 0
+
+
+
     speed_series.append(avg_speed)
 
     # Real-time graph update
