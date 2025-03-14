@@ -5,9 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from ultralytics import YOLO
 import csv
-from collections import defaultdict
-
-
+from demo_working import vehicleData
+from demo_working import speedData
 from collections import deque
 
 # Load YOLO model
@@ -69,6 +68,8 @@ while cap.isOpened():
                     vehicle_data[track_id] = {'class': class_name, 'first_seen_frame': frame_count,
                                               'last_seen': current_time, 'positions': [(frame_count, cx, cy)],
                                               'speed': 0.0}
+                    vehicleData.track_vehicle(track_id, cx,cy)
+
                 else:
                     vehicle_data[track_id]['last_seen'] = current_time
                     vehicle_data[track_id]['positions'].append((frame_count, cx, cy))
@@ -90,6 +91,7 @@ while cap.isOpened():
                             new_speed = alpha * speed_km_h + (1 - alpha) * old_speed
                             vehicle_data[track_id]['speed'] = round(new_speed, 2)
 
+                            speedData.log_speed(track_id,round(new_speed,2))
                 csv_writer.writerow([current_time, frame_count, track_id, class_name,
                                      vehicle_data[track_id]['speed'], cx, cy])
 
