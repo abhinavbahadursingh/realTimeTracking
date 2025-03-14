@@ -8,13 +8,13 @@ import csv
 from demo_working import vehicleData
 from demo_working import speedData
 from collections import deque
-
+from demo_working import accident
 # Load YOLO model
 model = YOLO('yolo11n.pt')
 class_list = model.names
 
 # Load video
-cap = cv2.VideoCapture(r'C:\Users\tar30\dmeo\Data\Video\testoing.mp4')
+cap = cv2.VideoCapture(r'C:\Users\tar30\dmeo\Data\Video\videoplayback.webm')
 
 # Get video properties
 fps = cap.get(cv2.CAP_PROP_FPS)
@@ -36,6 +36,7 @@ csv_writer.writerow(["Timestamp", "Frame", "VehicleID", "Class", "Speed_km_h", "
 time_series = deque(maxlen=100)
 vehicle_count_series = deque(maxlen=100)
 speed_series = deque(maxlen=100)
+
 
 plt.ion()
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6))
@@ -90,10 +91,16 @@ while cap.isOpened():
                             old_speed = vehicle_data[track_id]['speed']
                             new_speed = alpha * speed_km_h + (1 - alpha) * old_speed
                             vehicle_data[track_id]['speed'] = round(new_speed, 2)
+                            if round(new_speed, 2)==0.0:
+                                        accident.pushAccident(track_id, cx, cy)
+
 
                             speedData.log_speed(track_id,round(new_speed,2))
                             speedData.log_speed_to_csv(track_id,round(new_speed,2))
-                            # speedData.calculate_and_update_avg_speed()
+
+
+                            speedData.push_avg_speed_to_firebase()  # Push avg speed to Firebase
+
                 csv_writer.writerow([current_time, frame_count, track_id, class_name,
                                      vehicle_data[track_id]['speed'], cx, cy])
 
